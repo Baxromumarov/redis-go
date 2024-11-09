@@ -17,5 +17,5 @@ var (
 	ErrDelRequiresOneArg = errors.New("DEL command requires 1 argument")
 	ErrTTLRequiresOneArg = errors.New("TTL command requires 1 argument")
 	ErrInvalidTTLVal     = errors.New("invalid TTL value")
-	ErrSETCommand        = errors.New("SET command requires at least two arguments: key and value")
+	ErrSETCommand        = errors.New("SET command requires at least two arguments: key and value")	
 )

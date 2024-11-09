@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	err "github.com/baxromumarov/redis-go/errors"
@@ -11,6 +12,7 @@ import (
 
 type Database struct {
 	Store       map[string]string
+	Mu          sync.RWMutex
 	Expirations map[string]time.Time
 }
 
@@ -18,6 +20,7 @@ func Init() *Database {
 	return &Database{
 		Store:       make(map[string]string),
 		Expirations: make(map[string]time.Time),
+		Mu:          sync.RWMutex{},
 	}
 }
 
@@ -29,6 +32,8 @@ func (db *Database) Set(key, val string, ttl int) error {
 	if val == "" {
 		return err.ErrEmpyVal
 	}
+	db.Mu.Lock()
+	defer db.Mu.Unlock()
 
 	db.Store[key] = val
 	if ttl > 0 {
@@ -42,6 +47,8 @@ func (db *Database) Set(key, val string, ttl int) error {
 }
 
 func (db *Database) Get(key string) (string, error) {
+	db.Mu.Lock()
+	defer db.Mu.Unlock()
 	if expiration, exists := db.Expirations[key]; exists && time.Now().After(expiration) {
 		db.Del(key)
 		return "", err.ErrKeyHasExpired
@@ -56,15 +63,21 @@ func (db *Database) Get(key string) (string, error) {
 }
 
 func (db *Database) Del(key string) {
+	db.Mu.Lock()
+	defer db.Mu.Unlock()
 	delete(db.Store, key)
 }
 
 func (db *Database) Exist(key string) bool {
+	db.Mu.Lock()
+	defer db.Mu.Unlock()
 	_, exist := db.Store[key]
 	return exist
 }
 
 func (db *Database) Expire(key string, seconds int) error {
+	db.Mu.Lock()
+	defer db.Mu.Unlock()
 	if _, exists := db.Store[key]; !exists {
 		return err.ErrKeyNotFound
 	}
@@ -75,6 +88,8 @@ func (db *Database) Expire(key string, seconds int) error {
 }
 
 func (db *Database) StartExpirationCleaner(interval time.Duration) {
+	db.Mu.Lock()
+	defer db.Mu.Unlock()
 	go func() {
 		for {
 			time.Sleep(interval)
@@ -89,6 +104,8 @@ func (db *Database) StartExpirationCleaner(interval time.Duration) {
 
 // TTL returns the remaining time to live of a key
 func (db *Database) TTL(key string) (string, error) {
+	db.Mu.Lock()
+	defer db.Mu.Unlock()
 	expiration, exists := db.Expirations[key]
 	if !exists {
 		return "", err.ErrNoExpirationSet
@@ -100,10 +117,6 @@ func (db *Database) TTL(key string) (string, error) {
 		return "", err.ErrKeyHasExpired
 	}
 	return fmt.Sprintf("%f", remaining.Seconds()), nil
-}
-
-func (db *Database) Persist(key string) {
-	delete(db.Expirations, key)
 }
 
 func HandleCommand(db *Database, command string) (string, error) {
