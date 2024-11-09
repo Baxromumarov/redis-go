@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"time"
 
 	dtb "github.com/baxromumarov/redis-go/database"
 )
@@ -18,6 +19,10 @@ const (
 func main() {
 	fmt.Println()
 	db := dtb.Init()
+	
+	// in every two seconds, the cleaner will check for expired keys
+	// it will work in background
+	db.StartExpirationCleaner(2 * time.Second)
 
 	listener, err := net.Listen("tcp", ":6060")
 	if err != nil {
